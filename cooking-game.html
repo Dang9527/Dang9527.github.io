@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍳 模拟烧菜小游戏</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+      background: #1a0a00;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ========= SCREENS ========= */
+    .screen { display: none; width: 100%; max-width: 700px; padding: 20px; }
+    .screen.active { display: block; }
+
+    /* ========= TITLE SCREEN ========= */
+    #title-screen {
+      text-align: center;
+    }
+    #title-screen h1 {
+      font-size: 3em;
+      color: #ff9000;
+      text-shadow: 0 0 20px #ff6000, 0 0 40px #ff3000;
+      margin-bottom: 10px;
+      animation: flicker 2s infinite alternate;
+    }
+    @keyframes flicker {
+      0%   { text-shadow: 0 0 20px #ff6000, 0 0 40px #ff3000; }
+      100% { text-shadow: 0 0 30px #ffcc00, 0 0 60px #ff6000; }
+    }
+    #title-screen p { color: #ccc; margin-bottom: 30px; font-size: 1.1em; }
+    .dish-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .dish-card {
+      background: linear-gradient(145deg, #2d1500, #4a2200);
+      border: 2px solid #7a4500;
+      border-radius: 16px;
+      padding: 20px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .dish-card:hover {
+      border-color: #ff9000;
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(255,144,0,0.3);
+    }
+    .dish-card .dish-emoji { font-size: 3em; display: block; margin-bottom: 8px; }
+    .dish-card .dish-name { font-size: 1em; font-weight: bold; color: #ffcc66; }
+    .dish-card .dish-diff {
+      font-size: 0.75em;
+      color: #aaa;
+      margin-top: 4px;
+    }
+    .diff-easy { color: #66ff66 !important; }
+    .diff-medium { color: #ffcc00 !important; }
+    .diff-hard { color: #ff6666 !important; }
+
+    /* ========= COOKING SCREEN ========= */
+    #cooking-screen { position: relative; }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .hud .dish-info { font-size: 1.2em; color: #ffcc66; font-weight: bold; }
+    .score-box {
+      background: rgba(255,144,0,0.15);
+      border: 1px solid #7a4500;
+      border-radius: 10px;
+      padding: 4px 14px;
+      font-size: 0.9em;
+      color: #ffcc00;
+    }
+    .timer-bar-wrap {
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .timer-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00cc66, #66ff00);
+      transition: width 0.5s linear, background 0.5s;
+      border-radius: 4px;
+    }
+
+    /* KITCHEN VISUAL */
+    .kitchen {
+      position: relative;
+      background: linear-gradient(180deg, #1a0800 0%, #2d1200 60%, #3a1a00 100%);
+      border: 2px solid #5a3000;
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 14px;
+      min-height: 200px;
+      overflow: hidden;
+    }
+
+    /* Stove */
+    .stove {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 180px;
+      height: 90px;
+      background: linear-gradient(180deg, #555, #333);
+      border-radius: 12px 12px 6px 6px;
+      border: 2px solid #666;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .stove-knob {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 30px;
+      height: 14px;
+      background: #222;
+      border-radius: 6px;
+      border: 1px solid #555;
+    }
+
+    /* Flame */
+    .flame-container {
+      position: absolute;
+      bottom: 96px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      align-items: flex-end;
+      transition: all 0.3s;
+    }
+    .flame {
+      width: 14px;
+      background: linear-gradient(180deg, #fff 0%, #ffff00 30%, #ff9000 70%, #ff3000 100%);
+      border-radius: 50% 50% 30% 30%;
+      animation: burn 0.4s ease-in-out infinite alternate;
+      opacity: 0;
+      transition: opacity 0.4s, height 0.4s;
+    }
+    .flame:nth-child(1) { animation-delay: 0.0s; }
+    .flame:nth-child(2) { animation-delay: 0.1s; }
+    .flame:nth-child(3) { animation-delay: 0.2s; }
+    .flame:nth-child(4) { animation-delay: 0.15s; }
+    .flame:nth-child(5) { animation-delay: 0.05s; }
+    @keyframes burn {
+      0%   { transform: scaleX(1) skewX(-5deg); }
+      100% { transform: scaleX(0.85) skewX(5deg); }
+    }
+
+    /* Pan */
+    .pan-wrap {
+      position: absolute;
+      bottom: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      animation: none;
+    }
+    .pan-wrap.stir-anim { animation: stirPan 0.3s ease-in-out 3; }
+    @keyframes stirPan {
+      0%   { transform: translateX(-50%) rotate(-8deg); }
+      50%  { transform: translateX(-50%) rotate(8deg); }
+      100% { transform: translateX(-50%) rotate(-8deg); }
+    }
+
+    .pan {
+      width: 130px;
+      height: 55px;
+      background: linear-gradient(180deg, #444, #222);
+      border-radius: 50% 50% 30% 30% / 40% 40% 20% 20%;
+      border: 3px solid #777;
+      position: relative;
+      box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+    .pan-contents {
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      height: 60%;
+      border-radius: 50%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6em;
+      transition: all 0.4s;
+    }
+    .pan-handle {
+      position: absolute;
+      right: -46px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 50px;
+      height: 14px;
+      background: linear-gradient(90deg, #555, #333);
+      border-radius: 0 6px 6px 0;
+      border: 2px solid #666;
+    }
+
+    /* Steam */
+    .steam {
+      position: absolute;
+      bottom: 130px;
+      left: 50%;
+      display: flex;
+      gap: 10px;
+      transform: translateX(-50%);
+    }
+    .steam span {
+      display: block;
+      width: 8px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      animation: steamRise 1.5s ease-out infinite;
+      opacity: 0;
+    }
+    .steam span:nth-child(2) { animation-delay: 0.5s; }
+    .steam span:nth-child(3) { animation-delay: 1s; }
+    @keyframes steamRise {
+      0%   { transform: translateY(0)  scaleX(1);   opacity: 0.6; }
+      100% { transform: translateY(-40px) scaleX(2); opacity: 0; }
+    }
+
+    /* Smoke/Oil */
+    .smoke {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 2em;
+      opacity: 0;
+      transition: opacity 0.5s;
+      pointer-events: none;
+    }
+
+    /* Ingredient tray */
+    .ingredient-tray {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+    }
+    .ingr-item {
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-size: 0.8em;
+      color: #ddd;
+      white-space: nowrap;
+    }
+    .ingr-item.added { opacity: 0.35; text-decoration: line-through; }
+
+    /* STEPS */
+    .step-panel {
+      background: linear-gradient(145deg, #1e0d00, #2d1500);
+      border: 2px solid #7a4500;
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+    }
+    .step-number {
+      font-size: 0.75em;
+      color: #ff9000;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .step-desc {
+      font-size: 1.05em;
+      color: #ffe;
+      margin-bottom: 10px;
+      min-height: 1.4em;
+    }
+    .step-hint {
+      font-size: 0.8em;
+      color: #aaa;
+      font-style: italic;
+    }
+
+    /* ACTIONS */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .btn {
+      background: linear-gradient(145deg, #cc6600, #994400);
+      color: #fff;
+      border: none;
+      border-radius: 30px;
+      padding: 12px 24px;
+      font-size: 1em;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn:hover { background: linear-gradient(145deg, #ff8800, #cc5500); }
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn.btn-green {
+      background: linear-gradient(145deg, #228822, #155015);
+    }
+    .btn.btn-green:hover { background: linear-gradient(145deg, #33aa33, #228822); }
+    .btn.btn-blue {
+      background: linear-gradient(145deg, #2255aa, #163377);
+    }
+    .btn.btn-blue:hover { background: linear-gradient(145deg, #3366cc, #2255aa); }
+    .btn.btn-red {
+      background: linear-gradient(145deg, #aa2222, #771515);
+    }
+    .btn.btn-red:hover { background: linear-gradient(145deg, #cc3333, #aa2222); }
+
+    /* HEAT SLIDER */
+    .heat-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+    }
+    .heat-row label { font-size: 0.85em; color: #ffcc66; white-space: nowrap; }
+    .heat-row input[type=range] {
+      flex: 1;
+      accent-color: #ff6600;
+      cursor: pointer;
+    }
+    .heat-val {
+      font-size: 0.85em;
+      color: #ff9000;
+      min-width: 50px;
+      text-align: right;
+    }
+
+    /* FEEDBACK POPUP */
+    .feedback {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      background: rgba(0,0,0,0.92);
+      border: 2px solid #ff9000;
+      border-radius: 20px;
+      padding: 20px 40px;
+      text-align: center;
+      font-size: 1.8em;
+      z-index: 999;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+    .feedback.show { transform: translate(-50%, -50%) scale(1); }
+
+    /* PROGRESS STEPS */
+    .progress-dots {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #444;
+      transition: background 0.3s;
+    }
+    .dot.done { background: #66ff66; }
+    .dot.current { background: #ff9000; box-shadow: 0 0 8px #ff9000; }
+
+    /* ========= RESULT SCREEN ========= */
+    #result-screen { text-align: center; }
+    .result-dish { font-size: 5em; margin: 20px 0; animation: bounce 0.5s ease; }
+    @keyframes bounce {
+      0%   { transform: scale(0); }
+      60%  { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .result-title { font-size: 1.8em; margin-bottom: 8px; color: #ffcc00; }
+    .result-score-big {
+      font-size: 3.5em;
+      font-weight: bold;
+      color: #ff9000;
+      text-shadow: 0 0 20px #ff6000;
+      margin: 10px 0;
+    }
+    .result-grade {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+    .result-details {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #7a4500;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .result-details h4 { color: #ffcc66; margin-bottom: 10px; }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.9em;
+      color: #ccc;
+    }
+    .result-row span:last-child { color: #ffcc00; font-weight: bold; }
+
+    /* stars */
+    .stars { font-size: 2em; margin-bottom: 10px; }
+
+    /* scroll if needed */
+    @media (max-height: 700px) {
+      #cooking-screen { overflow-y: auto; max-height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen" class="screen active">
+  <h1>🍳 模拟烧菜</h1>
+  <p>选择一道菜，展示你的厨艺！</p>
+  <div class="dish-grid" id="dish-grid"></div>
+</div>
+
+<!-- COOKING SCREEN -->
+<div id="cooking-screen" class="screen">
+  <div class="hud">
+    <span class="dish-info" id="cooking-dish-name"></span>
+    <span class="score-box">得分: <span id="live-score">0</span></span>
+  </div>
+  <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+
+  <!-- Kitchen visual -->
+  <div class="kitchen" id="kitchen">
+    <div class="ingredient-tray" id="ingr-tray"></div>
+    <div class="smoke" id="smoke-text">💨</div>
+    <div class="steam" id="steam-anim">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="flame-container" id="flame-container">
+      <div class="flame" id="f1"></div>
+      <div class="flame" id="f2"></div>
+      <div class="flame" id="f3"></div>
+      <div class="flame" id="f4"></div>
+      <div class="flame" id="f5"></div>
+    </div>
+    <div class="pan-wrap" id="pan-wrap">
+      <div class="pan">
+        <div class="pan-contents" id="pan-contents"></div>
+        <div class="pan-handle"></div>
+      </div>
+    </div>
+    <div class="stove">
+      <div class="stove-knob"></div>
+    </div>
+  </div>
+
+  <!-- Progress dots -->
+  <div class="progress-dots" id="progress-dots"></div>
+
+  <!-- Current step -->
+  <div class="step-panel">
+    <div class="step-number" id="step-number">步骤 1</div>
+    <div class="step-desc" id="step-desc">请稍候…</div>
+    <div class="step-hint" id="step-hint"></div>
+  </div>
+
+  <!-- Heat control -->
+  <div class="heat-row" id="heat-row">
+    <label>🔥 火力：</label>
+    <input type="range" id="heat-slider" min="0" max="100" value="0">
+    <span class="heat-val" id="heat-val">关火</span>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="action-row" id="action-row"></div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="result-screen" class="screen">
+  <div class="result-dish" id="result-emoji"></div>
+  <div class="result-title" id="result-title"></div>
+  <div class="stars" id="result-stars"></div>
+  <div class="result-score-big" id="result-score"></div>
+  <div class="result-details" id="result-details"></div>
+  <button class="btn" onclick="goTitle()">🏠 返回主菜单</button>
+  &nbsp;
+  <button class="btn btn-green" onclick="replayCooking()">🔄 再来一次</button>
+</div>
+
+<!-- FEEDBACK POPUP -->
+<div class="feedback" id="feedback"></div>
+
+<script>
+// ===== DISH DATA =====
+const DISHES = [
+  {
+    id: 'tomato-egg',
+    name: '番茄炒蛋',
+    emoji: '🍅🥚',
+    diff: '简单',
+    diffClass: 'diff-easy',
+    description: '家常经典，酸甜可口',
+    ingredients: ['番茄×2', '鸡蛋×3', '盐', '糖', '油'],
+    steps: [
+      {
+        id: 'heat-oil',
+        desc: '倒入食用油，开火加热',
+        hint: '调整火力到中高火（70-90），等待油热',
+        type: 'heat',
+        targetHeatMin: 70, targetHeatMax: 90,
+        holdSeconds: 3,
+        action: null,
+        panEmoji: '🫙',
+        smokeAt: 2,
+      },
+      {
+        id: 'add-egg',
+        desc: '打入鸡蛋，快速翻炒',
+        hint: '点击"打蛋"，然后快速翻炒3次',
+        type: 'button-stir',
+        buttons: [{ label: '🥚 打蛋', id: 'crack-egg' }],
+        stirsNeeded: 3,
+        panEmoji: '🍳',
+        action: 'stir',
+      },
+      {
+        id: 'add-tomato',
+        desc: '加入番茄翻炒出汁',
+        hint: '点击"加番茄"，翻炒让番茄出汁',
+        type: 'button-stir',
+        buttons: [{ label: '🍅 加番茄', id: 'add-tomato' }],
+        stirsNeeded: 4,
+        panEmoji: '🍅🥚',
+        action: 'stir',
+      },
+      {
+        id: 'season',
+        desc: '按顺序加盐和糖调味',
+        hint: '先加盐，再加糖，顺序不能错！',
+        type: 'sequence',
+        sequence: [
+          { label: '🧂 加盐', id: 'add-salt' },
+          { label: '🍬 加糖', id: 'add-sugar' },
+        ],
+        panEmoji: '✨🍳',
+      },
+      {
+        id: 'serve',
+        desc: '大功告成！装盘出锅',
+        hint: '关火（火力调到0），然后点击"出锅"',
+        type: 'heat-then-button',
+        targetHeatMax: 10,
+        buttons: [{ label: '🍽️ 出锅！', id: 'serve' }],
+        panEmoji: '🍳',
+      },
+    ],
+  },
+  {
+    id: 'fried-rice',
+    name: '蛋炒饭',
+    emoji: '🍚🥚',
+    diff: '中等',
+    diffClass: 'diff-medium',
+    description: '粒粒分明，黄金炒饭',
+    ingredients: ['米饭', '鸡蛋×2', '葱花', '酱油', '盐', '油'],
+    steps: [
+      {
+        id: 'heat-oil',
+        desc: '热锅，倒油烧至冒烟',
+        hint: '调到高火（85-100）并保持3秒',
+        type: 'heat',
+        targetHeatMin: 85, targetHeatMax: 100,
+        holdSeconds: 3,
+        panEmoji: '🫙',
+        smokeAt: 2,
+      },
+      {
+        id: 'crack-egg',
+        desc: '打入鸡蛋，快速划散',
+        hint: '点击"打蛋"，翻炒2次让蛋散开',
+        type: 'button-stir',
+        buttons: [{ label: '🥚 打蛋', id: 'crack-egg' }],
+        stirsNeeded: 2,
+        panEmoji: '🍳',
+      },
+      {
+        id: 'add-rice',
+        desc: '倒入米饭，大火翻炒',
+        hint: '加入米饭后用力翻炒5次，让饭粒分离',
+        type: 'button-stir',
+        buttons: [{ label: '🍚 加米饭', id: 'add-rice' }],
+        stirsNeeded: 5,
+        panEmoji: '🍚🥚',
+      },
+      {
+        id: 'season',
+        desc: '加酱油和盐调味，快速翻匀',
+        hint: '按顺序：先加酱油，再加盐，各翻炒2次',
+        type: 'sequence',
+        sequence: [
+          { label: '🥢 加酱油', id: 'soy' },
+          { label: '🧂 加盐', id: 'salt' },
+        ],
+        panEmoji: '🍚✨',
+      },
+      {
+        id: 'scallion',
+        desc: '撒上葱花，翻炒均匀',
+        hint: '加入葱花，翻炒3次',
+        type: 'button-stir',
+        buttons: [{ label: '🌿 加葱花', id: 'scallion' }],
+        stirsNeeded: 3,
+        panEmoji: '🍳🌿',
+      },
+      {
+        id: 'serve',
+        desc: '出锅！',
+        hint: '关火后点击"出锅"',
+        type: 'heat-then-button',
+        targetHeatMax: 10,
+        buttons: [{ label: '🍽️ 出锅！', id: 'serve' }],
+        panEmoji: '🍚',
+      },
+    ],
+  },
+  {
+    id: 'braised-pork',
+    name: '红烧肉',
+    emoji: '🥩',
+    diff: '困难',
+    diffClass: 'diff-hard',
+    description: '肥而不腻，入口即化',
+    ingredients: ['五花肉', '老抽', '生抽', '冰糖', '八角', '香叶', '姜片', '料酒'],
+    steps: [
+      {
+        id: 'blanch',
+        desc: '冷水下锅焯水，去腥',
+        hint: '调中火（50-70），点击"焯水"，等待完成',
+        type: 'heat',
+        targetHeatMin: 50, targetHeatMax: 70,
+        holdSeconds: 4,
+        panEmoji: '🥩💧',
+        smokeAt: 3,
+        buttonLabel: '焯水',
+      },
+      {
+        id: 'sugar-color',
+        desc: '炒糖色：小火融化冰糖',
+        hint: '调低火（20-40），加入冰糖，慢慢翻炒上色',
+        type: 'heat',
+        targetHeatMin: 20, targetHeatMax: 40,
+        holdSeconds: 4,
+        panEmoji: '🍬',
+      },
+      {
+        id: 'add-pork',
+        desc: '加入五花肉，快速翻炒上色',
+        hint: '调高火，点击"加肉"，翻炒4次裹满糖色',
+        type: 'button-stir',
+        buttons: [{ label: '🥩 加五花肉', id: 'add-pork' }],
+        stirsNeeded: 4,
+        panEmoji: '🥩🍬',
+      },
+      {
+        id: 'add-sauce',
+        desc: '按顺序加入调料',
+        hint: '料酒→老抽→生抽，顺序不对会影响口感！',
+        type: 'sequence',
+        sequence: [
+          { label: '🍶 料酒', id: 'wine' },
+          { label: '🫙 老抽', id: 'dark-soy' },
+          { label: '🥢 生抽', id: 'light-soy' },
+        ],
+        panEmoji: '🥩✨',
+      },
+      {
+        id: 'braise',
+        desc: '加水没过肉，小火慢炖',
+        hint: '调低火（20-35），点击"加水炖"，耐心等待5秒',
+        type: 'heat',
+        targetHeatMin: 20, targetHeatMax: 35,
+        holdSeconds: 5,
+        panEmoji: '🥩💧🔥',
+      },
+      {
+        id: 'reduce',
+        desc: '大火收汁！',
+        hint: '调高火（80-100），翻炒5次收浓酱汁',
+        type: 'button-stir',
+        buttons: [{ label: '🔥 大火收汁', id: 'reduce' }],
+        stirsNeeded: 5,
+        panEmoji: '🥩🌟',
+      },
+      {
+        id: 'serve',
+        desc: '装盘，撒葱花完成！',
+        hint: '关火后出锅',
+        type: 'heat-then-button',
+        targetHeatMax: 10,
+        buttons: [{ label: '🍽️ 出锅！', id: 'serve' }],
+        panEmoji: '🥩',
+      },
+    ],
+  },
+];
+
+// ===== STATE =====
+let state = {
+  dish: null,
+  stepIdx: 0,
+  score: 0,
+  stepScores: [],
+  heat: 0,
+  heatHeldSec: 0,
+  heatHoldTimer: null,
+  stepTimer: null,
+  stepTimeLeft: 1,
+  stepTimeTotal: 1,
+  stirCount: 0,
+  stirsNeeded: 0,
+  seqIdx: 0,
+  actionDone: false,
+  ingredientsAdded: [],
+  currentSelectedDish: null,
+};
+
+// ===== INIT =====
+function init() {
+  const grid = document.getElementById('dish-grid');
+  grid.innerHTML = '';
+  DISHES.forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'dish-card';
+    card.innerHTML = `
+      <span class="dish-emoji">${d.emoji}</span>
+      <div class="dish-name">${d.name}</div>
+      <div class="dish-diff ${d.diffClass}">${d.diff}</div>
+      <div style="font-size:0.72em;color:#888;margin-top:4px">${d.description}</div>
+    `;
+    card.addEventListener('click', () => startCooking(d));
+    grid.appendChild(card);
+  });
+}
+
+// ===== SCREEN TRANSITIONS =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goTitle() {
+  clearTimers();
+  showScreen('title-screen');
+}
+function replayCooking() {
+  startCooking(state.currentSelectedDish);
+}
+
+// ===== START COOKING =====
+function startCooking(dish) {
+  state.currentSelectedDish = dish;
+  state.dish = dish;
+  state.stepIdx = 0;
+  state.score = 0;
+  state.stepScores = [];
+  state.heat = 0;
+  state.heatHeldSec = 0;
+  state.stirCount = 0;
+  state.seqIdx = 0;
+  state.actionDone = false;
+  state.ingredientsAdded = [];
+  clearTimers();
+
+  document.getElementById('cooking-dish-name').textContent = `${dish.emoji} ${dish.name}`;
+  document.getElementById('live-score').textContent = '0';
+
+  // ingredient tray
+  const tray = document.getElementById('ingr-tray');
+  tray.innerHTML = '';
+  dish.ingredients.forEach(ing => {
+    const el = document.createElement('span');
+    el.className = 'ingr-item';
+    el.textContent = ing;
+    el.id = 'ingr-' + ing;
+    tray.appendChild(el);
+  });
+
+  // progress dots
+  const dots = document.getElementById('progress-dots');
+  dots.innerHTML = '';
+  dish.steps.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' current' : '');
+    d.id = `dot-${i}`;
+    dots.appendChild(d);
+  });
+
+  // reset heat slider
+  const slider = document.getElementById('heat-slider');
+  slider.value = 0;
+  slider.addEventListener('input', onHeatChange);
+  updateHeatDisplay(0);
+  updateFlame(0);
+
+  showScreen('cooking-screen');
+  renderStep();
+}
+
+// ===== RENDER STEP =====
+function renderStep() {
+  const dish = state.dish;
+  const step = dish.steps[state.stepIdx];
+  state.stirCount = 0;
+  state.seqIdx = 0;
+  state.actionDone = false;
+  state.heatHeldSec = 0;
+  clearTimers();
+
+  document.getElementById('step-number').textContent =
+    `步骤 ${state.stepIdx + 1} / ${dish.steps.length}`;
+  document.getElementById('step-desc').textContent = step.desc;
+  document.getElementById('step-hint').textContent = step.hint || '';
+
+  // pan emoji
+  setPanContent(step.panEmoji || '');
+
+  // dots
+  dish.steps.forEach((_, i) => {
+    const dot = document.getElementById(`dot-${i}`);
+    if (i < state.stepIdx) dot.className = 'dot done';
+    else if (i === state.stepIdx) dot.className = 'dot current';
+    else dot.className = 'dot';
+  });
+
+  // timer
+  const stepTime = getStepTime(step);
+  state.stepTimeTotal = stepTime;
+  state.stepTimeLeft = stepTime;
+  startStepTimer(stepTime);
+
+  // heat row visibility
+  const heatRow = document.getElementById('heat-row');
+  heatRow.style.display = '';
+
+  // build action buttons
+  buildActionButtons(step);
+}
+
+function getStepTime(step) {
+  if (step.type === 'heat') return (step.holdSeconds || 3) * 4 + 8;
+  if (step.type === 'button-stir') return (step.stirsNeeded || 3) * 5 + 8;
+  if (step.type === 'sequence') return step.sequence.length * 8 + 6;
+  if (step.type === 'heat-then-button') return 18;
+  return 20;
+}
+
+function buildActionButtons(step) {
+  const row = document.getElementById('action-row');
+  row.innerHTML = '';
+
+  if (step.type === 'heat') {
+    // just stir (optional info)
+    const btn = makeBtn('🥄 翻炒', 'btn', () => doStir());
+    row.appendChild(btn);
+  } else if (step.type === 'button-stir') {
+    // main ingredient button + stir
+    if (step.buttons) {
+      step.buttons.forEach(b => {
+        const btn = makeBtn(b.label, 'btn btn-green', () => {
+          btn.disabled = true;
+          state.actionDone = true;
+          markIngredientAdded(b.id);
+          showFeedback('✅ 加入食材！');
+          updateStirPrompt();
+        });
+        btn.id = 'action-btn-' + b.id;
+        row.appendChild(btn);
+      });
+    }
+    const stirBtn = makeBtn(`🥄 翻炒 (${state.stirCount}/${step.stirsNeeded || 3})`, 'btn', () => {
+      if (!state.actionDone) { showFeedback('⚠️ 先加食材！'); return; }
+      doStir(step);
+    });
+    stirBtn.id = 'stir-btn';
+    row.appendChild(stirBtn);
+    state.stirsNeeded = step.stirsNeeded || 3;
+  } else if (step.type === 'sequence') {
+    state.seqIdx = 0;
+    renderSeqButtons(step);
+  } else if (step.type === 'heat-then-button') {
+    if (step.buttons) {
+      step.buttons.forEach(b => {
+        const btn = makeBtn(b.label, 'btn btn-blue', () => {
+          if (state.heat > (step.targetHeatMax || 10)) {
+            showFeedback('⚠️ 先把火力调低！'); return;
+          }
+          showFeedback('🎉 出锅！');
+          setTimeout(() => nextStep(), 800);
+        });
+        row.appendChild(btn);
+      });
+    }
+  }
+}
+
+function renderSeqButtons(step) {
+  const row = document.getElementById('action-row');
+  row.innerHTML = '';
+  step.sequence.forEach((item, idx) => {
+    const btn = makeBtn(item.label, 'btn' + (idx === state.seqIdx ? '' : ' btn-red'), () => {
+      if (idx !== state.seqIdx) {
+        showFeedback('❌ 顺序错了！-20分');
+        addScore(-20);
+        return;
+      }
+      showFeedback('✅ 正确！');
+      markIngredientAdded(item.id);
+      state.seqIdx++;
+      if (state.seqIdx >= step.sequence.length) {
+        setTimeout(() => nextStep(), 600);
+      } else {
+        renderSeqButtons(step);
+      }
+    });
+    btn.id = 'seq-btn-' + idx;
+    row.appendChild(btn);
+  });
+}
+
+function makeBtn(label, cls, handler) {
+  const btn = document.createElement('button');
+  btn.className = 'btn ' + cls;
+  btn.innerHTML = label;
+  btn.addEventListener('click', handler);
+  return btn;
+}
+
+function updateStirPrompt() {
+  const step = state.dish.steps[state.stepIdx];
+  const stirBtn = document.getElementById('stir-btn');
+  if (stirBtn) stirBtn.innerHTML = `🥄 翻炒 (${state.stirCount}/${step.stirsNeeded || 3})`;
+}
+
+// ===== STIR =====
+function doStir(step) {
+  step = step || state.dish.steps[state.stepIdx];
+  state.stirCount++;
+  triggerStirAnim();
+  addScore(15);
+  const needed = step.stirsNeeded || 3;
+  const stirBtn = document.getElementById('stir-btn');
+  if (stirBtn) stirBtn.innerHTML = `🥄 翻炒 (${state.stirCount}/${needed})`;
+  if (state.stirCount >= needed) {
+    showFeedback('🔥 翻炒完成！');
+    setTimeout(() => nextStep(), 700);
+  } else {
+    showFeedback(['继续！💪', '好！再来！', '加油！🍳'][state.stirCount % 3]);
+  }
+}
+
+function triggerStirAnim() {
+  const pw = document.getElementById('pan-wrap');
+  pw.classList.remove('stir-anim');
+  void pw.offsetWidth;
+  pw.classList.add('stir-anim');
+  pw.addEventListener('animationend', () => pw.classList.remove('stir-anim'), { once: true });
+}
+
+// ===== HEAT =====
+function onHeatChange(e) {
+  const v = parseInt(e.target.value);
+  state.heat = v;
+  updateHeatDisplay(v);
+  updateFlame(v);
+  checkHeatStep();
+}
+
+function updateHeatDisplay(v) {
+  const labels = ['关火', '微火', '小火', '中小火', '中火', '中大火', '大火', '猛火', '极猛火', '超猛火', '🔥最大火'];
+  const label = v === 0 ? '关火' : v <= 10 ? '微火' : v <= 30 ? '小火' : v <= 50 ? '中小火' : v <= 65 ? '中火' : v <= 80 ? '中大火' : '大火🔥';
+  document.getElementById('heat-val').textContent = `${v}% ${label}`;
+}
+
+function updateFlame(v) {
+  const flames = document.querySelectorAll('.flame');
+  const h = v / 100;
+  flames.forEach((f, i) => {
+    if (v === 0) { f.style.opacity = 0; return; }
+    const heights = [18, 28, 38, 28, 18];
+    f.style.height = (heights[i] * h + 5) + 'px';
+    f.style.opacity = 0.7 + h * 0.3;
+  });
+  // steam
+  const steams = document.querySelectorAll('.steam span');
+  steams.forEach(s => s.style.opacity = v > 40 ? '1' : '0');
+}
+
+let heatGoodFrames = 0;
+function checkHeatStep() {
+  const step = state.dish.steps[state.stepIdx];
+  if (step.type !== 'heat') return;
+  const inRange = state.heat >= step.targetHeatMin && state.heat <= step.targetHeatMax;
+  if (inRange) {
+    document.getElementById('step-hint').textContent =
+      `🔥 很好！保持${step.holdSeconds}秒... (${state.heatHeldSec}/${step.holdSeconds}s)`;
+  } else {
+    document.getElementById('step-hint').textContent = step.hint;
+  }
+}
+
+// ===== TIMERS =====
+function startStepTimer(seconds) {
+  const bar = document.getElementById('timer-bar');
+  bar.style.width = '100%';
+  bar.style.background = 'linear-gradient(90deg, #00cc66, #66ff00)';
+
+  let elapsed = 0;
+  const interval = 500;
+  const total = seconds * 1000;
+
+  state.stepTimer = setInterval(() => {
+    elapsed += interval;
+    const pct = Math.max(0, 1 - elapsed / total);
+    bar.style.width = (pct * 100) + '%';
+    if (pct < 0.3) bar.style.background = 'linear-gradient(90deg, #cc3300, #ff6600)';
+    else if (pct < 0.6) bar.style.background = 'linear-gradient(90deg, #ccaa00, #ffcc00)';
+
+    // heat hold logic
+    const step = state.dish.steps[state.stepIdx];
+    if (step && step.type === 'heat') {
+      const inRange = state.heat >= step.targetHeatMin && state.heat <= step.targetHeatMax;
+      if (inRange) {
+        state.heatHeldSec += interval / 1000;
+        document.getElementById('step-hint').textContent =
+          `🔥 很好！保持火力... (${Math.floor(state.heatHeldSec)}/${step.holdSeconds}s)`;
+        if (state.heatHeldSec >= step.holdSeconds) {
+          addScore(80);
+          showFeedback('🔥 完美火候！');
+          setTimeout(() => nextStep(), 700);
+        }
+      } else {
+        state.heatHeldSec = Math.max(0, state.heatHeldSec - interval / 2000);
+      }
+    }
+
+    if (elapsed >= total) {
+      clearInterval(state.stepTimer);
+      // time out on this step
+      showFeedback('⏰ 时间到了！-30分');
+      addScore(-30);
+      setTimeout(() => nextStep(), 900);
+    }
+  }, interval);
+}
+
+function clearTimers() {
+  if (state.stepTimer) clearInterval(state.stepTimer);
+  if (state.heatHoldTimer) clearTimeout(state.heatHoldTimer);
+}
+
+// ===== SCORE =====
+function addScore(delta) {
+  state.score = Math.max(0, state.score + delta);
+  document.getElementById('live-score').textContent = state.score;
+}
+
+// ===== NEXT STEP =====
+function nextStep() {
+  clearTimers();
+  state.stepScores.push(state.score);
+  state.stepIdx++;
+
+  const dish = state.dish;
+  if (state.stepIdx >= dish.steps.length) {
+    // done!
+    setTimeout(() => showResult(), 300);
+    return;
+  }
+
+  renderStep();
+}
+
+// ===== PAN CONTENT =====
+function setPanContent(emoji) {
+  const pc = document.getElementById('pan-contents');
+  pc.textContent = emoji;
+  pc.style.background = emoji.includes('💧') ? 'rgba(0,100,200,0.2)' :
+    emoji.includes('🍬') ? 'rgba(200,150,0,0.2)' :
+    emoji.includes('✨') ? 'rgba(255,255,0,0.1)' :
+    'rgba(200,100,0,0.15)';
+}
+
+// ===== INGREDIENT HIGHLIGHT =====
+function markIngredientAdded(id) {
+  const items = document.querySelectorAll('.ingr-item');
+  const map = {
+    'crack-egg': '鸡蛋', 'add-tomato': '番茄', 'add-salt': '盐', 'add-sugar': '糖',
+    'add-rice': '米饭', 'soy': '酱油', 'salt': '盐', 'scallion': '葱花',
+    'add-pork': '五花肉', 'wine': '料酒', 'dark-soy': '老抽', 'light-soy': '生抽',
+  };
+  const name = map[id];
+  if (!name) return;
+  items.forEach(el => {
+    if (el.textContent.includes(name)) el.classList.add('added');
+  });
+}
+
+// ===== FEEDBACK =====
+let feedbackTimer;
+function showFeedback(msg) {
+  const fb = document.getElementById('feedback');
+  fb.textContent = msg;
+  fb.classList.add('show');
+  clearTimeout(feedbackTimer);
+  feedbackTimer = setTimeout(() => fb.classList.remove('show'), 1200);
+}
+
+// ===== RESULT =====
+function showResult() {
+  const dish = state.dish;
+  const score = state.score;
+
+  let grade, stars, msg;
+  if (score >= 300) { grade = 'S 神厨！'; stars = '⭐⭐⭐⭐⭐'; msg = '完美！米其林大厨认证！'; }
+  else if (score >= 220) { grade = 'A 优秀'; stars = '⭐⭐⭐⭐'; msg = '非常棒！厨艺精湛！'; }
+  else if (score >= 150) { grade = 'B 良好'; stars = '⭐⭐⭐'; msg = '不错！继续练习！'; }
+  else if (score >= 80) { grade = 'C 一般'; stars = '⭐⭐'; msg = '还有进步空间哦！'; }
+  else { grade = 'D 需努力'; stars = '⭐'; msg = '别灰心，多练习！'; }
+
+  document.getElementById('result-emoji').textContent = dish.emoji;
+  document.getElementById('result-title').textContent = `${dish.name} — ${msg}`;
+  document.getElementById('result-stars').textContent = stars;
+  document.getElementById('result-score').textContent = `${score} 分`;
+  document.getElementById('result-grade').textContent = '';
+
+  const details = document.getElementById('result-details');
+  details.innerHTML = `
+    <h4>📋 烹饪报告</h4>
+    <div class="result-row"><span>菜品</span><span>${dish.name}</span></div>
+    <div class="result-row"><span>难度</span><span>${dish.diff}</span></div>
+    <div class="result-row"><span>完成步骤</span><span>${dish.steps.length} / ${dish.steps.length}</span></div>
+    <div class="result-row"><span>最终评级</span><span>${grade}</span></div>
+    <div class="result-row"><span>总得分</span><span>${score} 分</span></div>
+  `;
+
+  showScreen('result-screen');
+}
+
+// ===== START =====
+init();
+</script>
+</body>
+</html>
