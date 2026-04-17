@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>山水 · 3D Landscape</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <style>
+    html, body { height: 100%; }
+    body { margin: 0; overflow: hidden; background: #e8e2d4; }
+    #scene { position: fixed; inset: 0; }
+    #overlay {
+      position: fixed;
+      top: 24px;
+      left: 32px;
+      color: #2b2b2b;
+      font-family: "STKaiti", "KaiTi", "Songti SC", "SimSun", serif;
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    }
+    #overlay h1 {
+      margin: 0;
+      font-size: 56px;
+      letter-spacing: 0.4em;
+      writing-mode: vertical-rl;
+    }
+    #overlay p {
+      margin: 12px 0 0 8px;
+      font-size: 14px;
+      letter-spacing: 0.3em;
+      color: #555;
+    }
+    #hint {
+      position: fixed;
+      bottom: 18px;
+      right: 24px;
+      font-family: "STKaiti", "KaiTi", serif;
+      color: #555;
+      font-size: 13px;
+      letter-spacing: 0.2em;
+    }
+    #back {
+      position: fixed;
+      top: 24px;
+      right: 28px;
+      font-family: "STKaiti", "KaiTi", serif;
+      color: #2b2b2b;
+      font-size: 16px;
+      letter-spacing: 0.2em;
+      text-decoration: none;
+      border-bottom: 1px solid #2b2b2b;
+    }
+    #back:hover { color: #c0392b; border-color: #c0392b; }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="overlay">
+    <h1>山　水</h1>
+    <p>千山暮雪 · 万水朝东</p>
+  </div>
+  <a id="back" href="index.html">返回 ▸</a>
+  <div id="hint">拖动旋转 · 滚轮缩放</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0xeae3d2, 1);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xeae3d2, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(
+      55, window.innerWidth / window.innerHeight, 0.1, 2000
+    );
+    camera.position.set(0, 60, 160);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 60;
+    controls.maxDistance = 360;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.target.set(0, 10, 0);
+
+    // ---- Lighting (soft ink-wash mood) ----
+    const hemi = new THREE.HemisphereLight(0xfff4d6, 0x6f8fa3, 0.85);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xffe6b8, 1.1);
+    sun.position.set(120, 180, 80);
+    scene.add(sun);
+
+    // Soft red sun disc in the sky
+    const sunDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(14, 48),
+      new THREE.MeshBasicMaterial({ color: 0xd35a3a, transparent: true, opacity: 0.9 })
+    );
+    sunDisc.position.set(-180, 110, -260);
+    sunDisc.lookAt(camera.position);
+    scene.add(sunDisc);
+
+    // ---- Procedural terrain (mountains) ----
+    const noise = new ImprovedNoise();
+    const SIZE = 600;
+    const SEG = 220;
+
+    function buildTerrain(seedOffset, peakBoost, color) {
+      const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+      geo.rotateX(-Math.PI / 2);
+      const pos = geo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      const baseColor = new THREE.Color(color);
+      const peakColor = new THREE.Color(0xffffff);
+      const valleyColor = new THREE.Color(0x4a5b6a);
+
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+
+        // distance from center (river runs through the middle along X)
+        const riverDist = Math.abs(z) - 18 - Math.sin(x * 0.012) * 8;
+        const riverMask = THREE.MathUtils.smoothstep(riverDist, 0, 40);
+
+        // multi-octave ridged noise for mountain ridges
+        let h = 0;
+        let amp = 1;
+        let freq = 0.012;
+        for (let o = 0; o < 5; o++) {
+          const n = noise.noise(
+            x * freq + seedOffset,
+            z * freq - seedOffset,
+            seedOffset * 1.7
+          );
+          // ridged
+          h += (1 - Math.abs(n)) * amp;
+          amp *= 0.5;
+          freq *= 2.05;
+        }
+        h = Math.pow(h * 0.55, 2.2) * peakBoost;
+
+        // Falloff near edges so terrain fades into mist
+        const r = Math.sqrt(x * x + z * z) / (SIZE * 0.5);
+        const edgeFade = THREE.MathUtils.smoothstep(1.0, 0.45, r);
+        h *= edgeFade;
+
+        // Carve river
+        h *= riverMask;
+
+        pos.setY(i, h);
+
+        // Color by altitude
+        const t = THREE.MathUtils.clamp(h / (peakBoost * 0.9), 0, 1);
+        const c = new THREE.Color();
+        if (t < 0.05) {
+          c.copy(valleyColor).lerp(baseColor, t / 0.05);
+        } else if (t < 0.75) {
+          c.copy(baseColor);
+        } else {
+          c.copy(baseColor).lerp(peakColor, (t - 0.75) / 0.25);
+        }
+        colors[i * 3] = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        flatShading: false,
+        roughness: 0.95,
+        metalness: 0.0,
+      });
+      return new THREE.Mesh(geo, mat);
+    }
+
+    // Foreground darker mountains
+    const front = buildTerrain(11.3, 70, 0x6b7a82);
+    front.position.y = -2;
+    scene.add(front);
+
+    // Distant lighter range for depth
+    const back = buildTerrain(47.9, 95, 0x9aa9b3);
+    back.position.set(0, -4, -260);
+    back.scale.set(1.4, 1.0, 1.0);
+    scene.add(back);
+
+    // ---- Water plane ----
+    const waterGeo = new THREE.PlaneGeometry(SIZE * 1.6, SIZE * 1.6, 80, 80);
+    waterGeo.rotateX(-Math.PI / 2);
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x8aa8b8,
+      transparent: true,
+      opacity: 0.78,
+      roughness: 0.25,
+      metalness: 0.6,
+    });
+    const water = new THREE.Mesh(waterGeo, waterMat);
+    water.position.y = 1.2;
+    scene.add(water);
+
+    const waterPos = waterGeo.attributes.position;
+    const waterBase = waterPos.array.slice();
+
+    // ---- Floating "clouds" (sprite quads) ----
+    const cloudGroup = new THREE.Group();
+    const cloudTex = makeCloudTexture();
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(80 + Math.random() * 60, 18 + Math.random() * 10),
+        new THREE.MeshBasicMaterial({
+          map: cloudTex,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+        })
+      );
+      m.position.set(
+        (Math.random() - 0.5) * 600,
+        20 + Math.random() * 60,
+        -150 - Math.random() * 200
+      );
+      m.userData.speed = 0.05 + Math.random() * 0.08;
+      cloudGroup.add(m);
+    }
+    scene.add(cloudGroup);
+
+    function makeCloudTexture() {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(128, 128, 10, 128, 128, 128);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)');
+      g.addColorStop(0.5, 'rgba(245,240,230,0.55)');
+      g.addColorStop(1, 'rgba(234,227,210,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 256, 256);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // ---- A small pagoda silhouette on a peak ----
+    const pagoda = new THREE.Group();
+    const pagodaMat = new THREE.MeshStandardMaterial({ color: 0x3b2a22, roughness: 0.8 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b1f1a, roughness: 0.7 });
+    let py = 0;
+    for (let i = 0; i < 5; i++) {
+      const w = 6 - i * 0.9;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, w), pagodaMat);
+      body.position.y = py + 1.2;
+      pagoda.add(body);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.95, 1.6, 4), roofMat);
+      roof.rotation.y = Math.PI / 4;
+      roof.position.y = py + 2.4 + 0.8;
+      pagoda.add(roof);
+      py += 3.6;
+    }
+    const spire = new THREE.Mesh(
+      new THREE.ConeGeometry(0.6, 3, 8),
+      new THREE.MeshStandardMaterial({ color: 0xc9a14b, metalness: 0.6, roughness: 0.3 })
+    );
+    spire.position.y = py + 1.5;
+    pagoda.add(spire);
+    pagoda.position.set(40, 32, -20);
+    pagoda.scale.set(1.1, 1.1, 1.1);
+    scene.add(pagoda);
+
+    // ---- A lone boat on the river ----
+    const boat = new THREE.Group();
+    const hull = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.9, 4, 4, 8),
+      new THREE.MeshStandardMaterial({ color: 0x2e1f15, roughness: 0.9 })
+    );
+    hull.rotation.z = Math.PI / 2;
+    hull.scale.set(1, 1, 0.55);
+    boat.add(hull);
+    const sail = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 3),
+      new THREE.MeshStandardMaterial({ color: 0xf2ead4, side: THREE.DoubleSide, roughness: 0.9 })
+    );
+    sail.position.set(0, 2, 0);
+    boat.add(sail);
+    boat.position.set(-30, 1.6, 4);
+    scene.add(boat);
+
+    // ---- Animation loop ----
+    const clock = new THREE.Clock();
+    function animate() {
+      const t = clock.getElapsedTime();
+
+      // Gentle water ripples
+      for (let i = 0; i < waterPos.count; i++) {
+        const ix = i * 3;
+        const x = waterBase[ix];
+        const z = waterBase[ix + 2];
+        waterPos.array[ix + 1] =
+          Math.sin(x * 0.05 + t * 0.9) * 0.25 +
+          Math.cos(z * 0.07 + t * 1.1) * 0.25;
+      }
+      waterPos.needsUpdate = true;
+      waterGeo.computeVertexNormals();
+
+      // Drift clouds
+      cloudGroup.children.forEach((c) => {
+        c.position.x += c.userData.speed;
+        if (c.position.x > 320) c.position.x = -320;
+        c.lookAt(camera.position.x, c.position.y, camera.position.z);
+      });
+
+      // Boat bobs
+      boat.position.y = 1.6 + Math.sin(t * 1.2) * 0.2;
+      boat.rotation.z = Math.sin(t * 0.8) * 0.05;
+      boat.position.x += 0.05;
+      if (boat.position.x > 220) boat.position.x = -220;
+
+      // Sun faces camera
+      sunDisc.lookAt(camera.position);
+
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
